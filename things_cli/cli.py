@@ -390,11 +390,39 @@ class ThingsCLI:  # pylint: disable=too-many-instance-attributes
 
         return parser
 
+    @staticmethod
+    def resolve_project(name, filepath=None):
+        """Resolve a project name to its UUID. Pass through if already a UUID."""
+        if name is None:
+            return None
+        kwargs = {"filepath": filepath} if filepath else {}
+        for project in api.projects(**kwargs):
+            if project["uuid"] == name:
+                return name
+            if project["title"] == name:
+                return project["uuid"]
+        print(f"Warning: project '{name}' not found", file=sys.stderr)
+        return name
+
+    @staticmethod
+    def resolve_area(name, filepath=None):
+        """Resolve an area name to its UUID. Pass through if already a UUID."""
+        if name is None:
+            return None
+        kwargs = {"filepath": filepath} if filepath else {}
+        for area in api.areas(**kwargs):
+            if area["uuid"] == name:
+                return name
+            if area["title"] == name:
+                return area["uuid"]
+        print(f"Warning: area '{name}' not found", file=sys.stderr)
+        return name
+
     def defaults(self):
         """Set default options for the new API."""
         return {
-            "project": self.filter_project,
-            "area": self.filter_area,
+            "project": self.resolve_project(self.filter_project, self.database),
+            "area": self.resolve_area(self.filter_area, self.database),
             "tag": self.filter_tag,
             "include_items": self.recursive,
             "filepath": self.database,
