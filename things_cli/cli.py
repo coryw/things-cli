@@ -21,6 +21,13 @@ import things as api
 
 from things_cli import __version__
 
+TASK_FIELDS = frozenset({
+    "uuid", "type", "title", "notes", "status", "start", "start_date",
+    "deadline", "stop_date", "created", "modified", "project_title",
+    "area_title", "heading_title", "tags", "checklist", "items",
+    "index", "today_index", "reminder_time", "area", "project", "heading",
+})
+
 
 class ThingsCLI:  # pylint: disable=too-many-instance-attributes
     """A simple Python 3 CLI to read your Things app data."""
@@ -265,6 +272,15 @@ class ThingsCLI:  # pylint: disable=too-many-instance-attributes
             "search", help="Searches for a specific task"
         ).add_argument("string", help="String to search for")
 
+        export_parser = subparsers.add_parser("export", help="Export tasks from a project as JSON")
+        export_parser.add_argument("project_name", help="Project name or UUID")
+        export_parser.add_argument(
+            "-f", "--fields",
+            dest="fields",
+            default=None,
+            help="Comma-separated list of fields to include (e.g., title,notes,created)",
+        )
+
         ################################
         # To be implemented in things.py
         ################################
@@ -405,6 +421,37 @@ class ThingsCLI:  # pylint: disable=too-many-instance-attributes
         return name
 
     @staticmethod
+    def parse_fields(fields_str):
+        """Parse and validate comma-separated field names."""
+        if fields_str is None:
+            return None
+        fields = [f.strip() for f in fields_str.split(",") if f.strip()]
+        invalid = [f for f in fields if f not in TASK_FIELDS]
+        if invalid:
+            print(
+                f"error: invalid field(s): {', '.join(invalid)}\n"
+                f"valid fields: {', '.join(sorted(TASK_FIELDS))}",
+                file=sys.stderr,
+            )
+            sys.exit(2)
+        return fields
+
+    @staticmethod
+    def filter_fields(tasks, fields):
+        """Filter task dicts to include only requested fields."""
+        if fields is None:
+            return tasks
+        field_set = set(fields)
+        result = []
+        for task in tasks:
+            filtered = {k: v for k, v in task.items() if k in field_set}
+            for key in ("items", "checklist"):
+                if key in field_set and key in task and isinstance(task[key], list):
+                    filtered[key] = ThingsCLI.filter_fields(task[key], fields)
+            result.append(filtered)
+        return result
+
+    @staticmethod
     def resolve_area(name, filepath=None):
         """Resolve an area name to its UUID. Pass through if already a UUID."""
         if name is None:
@@ -502,6 +549,18 @@ class ThingsCLI:  # pylint: disable=too-many-instance-attributes
                     include_items=self.recursive,
                 )
             )
+        elif command == "export":
+            project_uuid = self.resolve_project(args.project_name, self.database)
+            fields = self.parse_fields(getattr(args, "fields", None))
+            tasks = api.todos(
+                project=project_uuid,
+                include_items=self.recursive,
+                filepath=self.database,
+            )
+            tasks = self.filter_fields(tasks, fields)
+            if not (self.print_csv or self.print_opml or self.print_gantt):
+                self.print_json = True
+            self.print_tasks(tasks)
         elif command == "feedback":  # pragma: no cover
             webbrowser.open("https://github.com/thingsapi/things-cli/issues")
         elif command in dir(api):

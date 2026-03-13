@@ -30,7 +30,7 @@ class ThingsCLICase(unittest.TestCase):
         for command in parser._subparsers._actions[
             1
         ].choices:  # noqa # pylint: disable=protected-access
-            if command not in ["feedback", "search", "logtoday", "createdtoday"]:
+            if command not in ["feedback", "search", "logtoday", "createdtoday", "export"]:
                 args = parser.parse_args([command])
                 self._test_main(args, " ")
                 args = parser.parse_args(["-r", command])
@@ -92,6 +92,79 @@ class ThingsCLICase(unittest.TestCase):
         finally:
             sys.stdout = old_out
         self.assertIn("E18tg5qepzrQk9J6jQtb5C", new_out.getvalue())
+
+    def test_export_json(self):
+        """Test export defaults to JSON."""
+        args = self.things3_cli.get_parser().parse_args(
+            ["-d", "tests/main.sqlite", "export", "Project in Area 1"]
+        )
+        new_out = io.StringIO()
+        old_out = sys.stdout
+        try:
+            sys.stdout = new_out
+            self.things3_cli.main(args)
+        finally:
+            sys.stdout = old_out
+        output = new_out.getvalue()
+        self.assertIn("[", output)
+        self.assertIn("3x1QqJqfvZyhtw8NSdnZqG", output)
+
+    def test_export_csv(self):
+        """Test export with CSV flag."""
+        args = self.things3_cli.get_parser().parse_args(
+            ["-d", "tests/main.sqlite", "-c", "export", "Project in Area 1"]
+        )
+        new_out = io.StringIO()
+        old_out = sys.stdout
+        try:
+            sys.stdout = new_out
+            self.things3_cli.main(args)
+        finally:
+            sys.stdout = old_out
+        self.assertIn(";", new_out.getvalue())
+
+    def test_export_fields(self):
+        """Test export with field selection."""
+        args = self.things3_cli.get_parser().parse_args(
+            ["-d", "tests/main.sqlite", "export", "Project in Area 1", "--fields", "title,notes"]
+        )
+        new_out = io.StringIO()
+        old_out = sys.stdout
+        try:
+            sys.stdout = new_out
+            self.things3_cli.main(args)
+        finally:
+            sys.stdout = old_out
+        import json
+        output = json.loads(new_out.getvalue())
+        if output:
+            keys = set(output[0].keys())
+            self.assertTrue(keys.issubset({"title", "notes"}))
+            self.assertNotIn("uuid", output[0])
+
+    def test_export_invalid_fields(self):
+        """Test export with invalid field name exits with error."""
+        args = self.things3_cli.get_parser().parse_args(
+            ["-d", "tests/main.sqlite", "export", "Project in Area 1", "--fields", "bogus"]
+        )
+        with self.assertRaises(SystemExit) as cm:
+            self.things3_cli.main(args)
+        self.assertEqual(cm.exception.code, 2)
+
+    def test_export_recursive(self):
+        """Test export with recursive flag."""
+        args = self.things3_cli.get_parser().parse_args(
+            ["-d", "tests/main.sqlite", "-r", "export", "Project in Area 1"]
+        )
+        new_out = io.StringIO()
+        old_out = sys.stdout
+        try:
+            sys.stdout = new_out
+            self.things3_cli.main(args)
+        finally:
+            sys.stdout = old_out
+        output = new_out.getvalue()
+        self.assertIn("[", output)
 
     def test_json(self):
         """Test Upcoming via JSON."""
