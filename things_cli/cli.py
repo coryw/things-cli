@@ -21,6 +21,85 @@ import things as api
 
 from things_cli import __version__
 
+HELP_TEXT = """\
+things-cli - read-only CLI for Things 3 on macOS
+
+usage: things-cli [options] <command> [args]
+
+Examples:
+  things-cli today                  show today's tasks
+  things-cli -j today               show today's tasks as JSON
+  things-cli -p "My Project" today  filter today's tasks by project
+  things-cli search "buy milk"      search for a task by title
+  things-cli export "My Project"    export project tasks as JSON
+
+Task Lists:
+  inbox           show tasks in the inbox
+  today           show tasks due today
+  upcoming        show upcoming scheduled tasks
+  anytime         show tasks with flexible scheduling
+  someday         show tasks deferred to someday
+  todos           show all incomplete to-dos
+
+History:
+  completed       show completed tasks
+  canceled        show canceled tasks
+  logbook         show all logged (completed) tasks
+  logtoday        show tasks completed today
+  createdtoday    show tasks created today
+  trash           show trashed tasks
+
+Organization:
+  areas           show all areas
+  projects        show all projects
+  tags            show all tags, ordered by usage
+  deadlines       show tasks with due dates
+  all             show everything, grouped by list
+
+Search & Export:
+  search STRING   search tasks by title
+  export PROJECT  export a project's tasks (default: JSON)
+
+Filtering:
+  -p, --filter-project NAME  filter by project name or UUID
+  -a, --filter-area NAME     filter by area name or UUID
+  -t, --filtertag TAG        filter by tag
+
+Output Format:
+  -j, --json       output as JSON
+  -c, --csv        output as CSV (semicolon-delimited)
+  -o, --opml       output as OPML
+  -g, --gantt      output as Mermaid.js Gantt chart
+
+Output Control:
+  -r, --recursive       include sub-tasks and checklist items
+  -e, --only-projects   limit recursive output to projects only
+
+General:
+  -d, --database PATH   use a custom database file
+  -v, --version         show version and exit
+  -h, --help            show this help message and exit
+
+Other:
+  feedback              open the GitHub issues page
+
+Run 'things-cli <command> -h' for details on a specific command.
+"""
+
+
+class ThingsParser(argparse.ArgumentParser):
+    """Custom parser with grouped help text."""
+
+    def format_help(self):
+        return HELP_TEXT
+
+    def error(self, message):
+        if "the following arguments are required: command" in message:
+            self.print_help(sys.stderr)
+            self.exit(2)
+        super().error(message)
+
+
 TASK_FIELDS = frozenset({
     "uuid", "type", "title", "notes", "status", "start", "start_date",
     "deadline", "stop_date", "created", "modified", "project_title",
@@ -237,7 +316,7 @@ class ThingsCLI:  # pylint: disable=too-many-instance-attributes
     @classmethod
     def get_parser(cls):
         """Create command line argument parser."""
-        parser = argparse.ArgumentParser(description="Simple read-only Thing 3 CLI.")
+        parser = ThingsParser(description="Simple read-only Thing 3 CLI.")
 
         subparsers = parser.add_subparsers(
             help="", metavar="command", required=True, dest="command"
@@ -246,33 +325,33 @@ class ThingsCLI:  # pylint: disable=too-many-instance-attributes
         ################################
         # Core database methods
         ################################
-        subparsers.add_parser("inbox", help="Shows inbox tasks")
-        subparsers.add_parser("today", help="Shows todays tasks")
-        subparsers.add_parser("upcoming", help="Shows upcoming tasks")
-        subparsers.add_parser("anytime", help="Shows anytime tasks")
-        subparsers.add_parser("completed", help="Shows completed tasks")
-        subparsers.add_parser("someday", help="Shows someday tasks")
-        subparsers.add_parser("canceled", help="Shows canceled tasks")
-        subparsers.add_parser("trash", help="Shows trashed tasks")
-        subparsers.add_parser("todos", help="Shows all todos")
-        subparsers.add_parser("all", help="Shows all tasks")
-        subparsers.add_parser("areas", help="Shows all areas")
-        subparsers.add_parser("projects", help="Shows all projects")
-        subparsers.add_parser("logbook", help="Shows completed tasks")
-        subparsers.add_parser("logtoday", help="Shows tasks completed today")
-        subparsers.add_parser("createdtoday", help="Shows tasks created today")
-        subparsers.add_parser("tags", help="Shows all tags ordered by their usage")
-        subparsers.add_parser("deadlines", help="Shows tasks with due dates")
+        subparsers.add_parser("inbox", help="show tasks in the inbox")
+        subparsers.add_parser("today", help="show tasks due today")
+        subparsers.add_parser("upcoming", help="show upcoming scheduled tasks")
+        subparsers.add_parser("anytime", help="show tasks with flexible scheduling")
+        subparsers.add_parser("completed", help="show completed tasks")
+        subparsers.add_parser("someday", help="show tasks deferred to someday")
+        subparsers.add_parser("canceled", help="show canceled tasks")
+        subparsers.add_parser("trash", help="show trashed tasks")
+        subparsers.add_parser("todos", help="show all incomplete to-dos")
+        subparsers.add_parser("all", help="show everything, grouped by list")
+        subparsers.add_parser("areas", help="show all areas")
+        subparsers.add_parser("projects", help="show all projects")
+        subparsers.add_parser("logbook", help="show all logged (completed) tasks")
+        subparsers.add_parser("logtoday", help="show tasks completed today")
+        subparsers.add_parser("createdtoday", help="show tasks created today")
+        subparsers.add_parser("tags", help="show all tags, ordered by usage")
+        subparsers.add_parser("deadlines", help="show tasks with due dates")
 
         ################################
         # Additional functions
         ################################
-        subparsers.add_parser("feedback", help="Give feedback")
+        subparsers.add_parser("feedback", help="open the GitHub issues page")
         subparsers.add_parser(
-            "search", help="Searches for a specific task"
+            "search", help="search tasks by title"
         ).add_argument("string", help="String to search for")
 
-        export_parser = subparsers.add_parser("export", help="Export tasks from a project as JSON")
+        export_parser = subparsers.add_parser("export", help="export a project's tasks (default: JSON)")
         export_parser.add_argument("project_name", help="Project name or UUID")
         export_parser.add_argument(
             "-f", "--fields",
@@ -330,10 +409,10 @@ class ThingsCLI:  # pylint: disable=too-many-instance-attributes
         #                     help="anonymize output", dest="anonymize")
 
         parser.add_argument(
-            "-p", "--filter-project", dest="filter_project", help="filter by project (UUID)"
+            "-p", "--filter-project", dest="filter_project", help="filter by project name or UUID"
         )
         parser.add_argument(
-            "-a", "--filter-area", dest="filter_area", help="filter by area (UUID)"
+            "-a", "--filter-area", dest="filter_area", help="filter by area name or UUID"
         )
         parser.add_argument(
             "-t", "--filtertag", dest="filter_tag", help="filter by tag"
@@ -344,7 +423,7 @@ class ThingsCLI:  # pylint: disable=too-many-instance-attributes
             action="store_true",
             default=False,
             dest="only_projects",
-            help="export only projects",
+            help="limit recursive output to projects only",
         )
         parser.add_argument(
             "-o",
@@ -385,14 +464,14 @@ class ThingsCLI:  # pylint: disable=too-many-instance-attributes
         parser.add_argument(
             "-r",
             "--recursive",
-            help="in-depth output",
+            help="include sub-tasks and checklist items",
             dest="recursive",
             default=False,
             action="store_true",
         )
 
         parser.add_argument(
-            "-d", "--database", help="set path to database", dest="database"
+            "-d", "--database", help="use a custom database file", dest="database"
         )
 
         parser.add_argument(
